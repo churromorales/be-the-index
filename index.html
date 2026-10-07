@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#172033">
+<title>Be the index</title>
+<style>
+  :root {
+    --paper: #F7F8FA; --ink: #172033; --ink-2: #4B5468; --ink-3: #7C8598; --rule: #D5DAE3; --wash: #E9EDF3;
+    --b0: #C2437A; --b1: #B07D00; --b2: #009680; --b3: #4058D6;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--paper); color: var(--ink); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    padding: max(20px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom));
+    max-width: 520px; margin: 0 auto;
+  }
+  .eyebrow { font-size: 13px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+  h1 { font-size: 30px; line-height: 1.1; margin: 4px 0 18px; letter-spacing: -0.01em; }
+
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; background: var(--wash); border-radius: 12px; padding: 4px; gap: 4px; }
+  .tabs button {
+    font: inherit; font-size: 16px; font-weight: 600; border: 0; border-radius: 9px; padding: 12px 6px;
+    background: transparent; color: var(--ink-2);
+  }
+  .tabs button[aria-pressed="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(23,32,51,.15); }
+
+  .seg { margin-top: 18px; background: #fff; border-radius: 14px; padding: 18px 18px 16px; box-shadow: 0 1px 3px rgba(23,32,51,.08); }
+  .seg .lbl { font-size: 14px; color: var(--ink-3); }
+  .seg .range { font-size: 22px; white-space: nowrap; font-weight: 700; line-height: 1.2; margin: 6px 0 14px; font-variant-numeric: tabular-nums; }
+  .seg .range span { color: var(--ink-3); font-weight: 500; }
+  .tl { position: relative; height: 44px; }
+  .tl .axis { position: absolute; left: 0; right: 0; top: 14px; height: 4px; background: var(--wash); border-radius: 2px; }
+  .tl .bar { position: absolute; top: 8px; height: 16px; border-radius: 4px; transition: left .5s ease, width .5s ease; }
+  .tl .q { position: absolute; top: 0; height: 32px; border: 2px solid var(--ink); border-radius: 5px; background: rgba(23,32,51,.06); display: none; }
+  .tl .ticks { position: absolute; left: 0; right: 0; top: 30px; font-size: 11px; color: var(--ink-3); }
+  .tl .ticks span { position: absolute; transform: translateX(-50%); }
+  .seg .note { font-size: 14px; color: var(--ink-2); margin-top: 6px; }
+
+  .qs-h { margin: 22px 0 10px; font-size: 15px; font-weight: 600; color: var(--ink-2); }
+  .qs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .qs button {
+    font: inherit; font-size: 16px; font-weight: 600; padding: 14px 4px; border-radius: 10px;
+    border: 2px solid var(--ink); background: #fff; color: var(--ink);
+  }
+  .qs button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+
+  .result { margin-top: 18px; border-radius: 14px; padding: 22px 18px; text-align: center; display: none; }
+  .result.stand { display: block; background: var(--b3); color: #fff; }
+  .result.sit { display: block; background: var(--wash); color: var(--ink); }
+  .result b { display: block; font-size: 44px; letter-spacing: -0.01em; line-height: 1.05; }
+  .result p { margin: 8px 0 0; font-size: 16px; line-height: 1.4; }
+  .result.stand { animation: pop .35s ease; }
+  @keyframes pop { from { transform: scale(.94); } to { transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .result.stand { animation: none; } .tl .bar { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="eyebrow">Be the index</div>
+<h1 id="who">You are segment #0000</h1>
+
+<div class="tabs" role="group" aria-label="Merge policy">
+  <button data-mode="size" aria-pressed="true">Merged by size</button>
+  <button data-mode="time" aria-pressed="false">Merged by time</button>
+</div>
+
+<div class="seg">
+  <div class="lbl">Your oldest and newest message</div>
+  <div class="range" id="range"></div>
+  <div class="tl" aria-hidden="true">
+    <div class="axis"></div>
+    <div class="q" id="qband"></div>
+    <div class="bar" id="bar"></div>
+    <div class="ticks" id="ticks"></div>
+  </div>
+  <div class="note" id="note"></div>
+</div>
+
+<div class="qs-h">When a search is called, tap it:</div>
+<div class="qs" role="group" aria-label="Searches">
+  <button data-q="week" aria-pressed="false">Last week</button>
+  <button data-q="year" aria-pressed="false">This year</button>
+  <button data-q="y2021" aria-pressed="false">2021</button>
+</div>
+
+<div class="result" id="result" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  const DAY = 864e5;
+  const NOW = Date.now();
+  const START = Date.UTC(2019, 0, 1);
+  const thisYear = new Date(NOW).getUTCFullYear();
+
+  // Each phone keeps the same identity across reloads; add ?new to reroll.
+  const KEY = "bti-seed";
+  let seed = null;
+  try { if (!location.search.includes("new")) seed = JSON.parse(localStorage.getItem(KEY)); } catch {}
+  if (!seed) {
+    seed = { id: 1000 + Math.floor(Math.random() * 9000), a: Math.random(), b: Math.random(), c: Math.random() };
+    try { localStorage.setItem(KEY, JSON.stringify(seed)); } catch {}
+  }
+
+  // Size-based merging: every segment ends up spanning years of history, up to the latest flush.
+  const sizeRange = () => ({
+    from: START + seed.a * (Date.UTC(2023, 6, 1) - START),
+    to: NOW - seed.b * 5 * DAY,
+  });
+
+  // Time-based merging: segments never cross a bucket boundary. Recent data is split finer.
+  const BUCKETS = [
+    { from: NOW - 365 * DAY, to: NOW, slices: 6, weight: 0.35, color: "var(--b3)", name: "past year" },
+    { from: NOW - 730 * DAY, to: NOW - 365 * DAY, slices: 3, weight: 0.25, color: "var(--b2)", name: "1–2 years ago" },
+    { from: NOW - 1095 * DAY, to: NOW - 730 * DAY, slices: 3, weight: 0.2, color: "var(--b1)", name: "2–3 years ago" },
+    { from: START, to: NOW - 1095 * DAY, slices: 3, weight: 0.2, color: "var(--b0)", name: "3+ years ago" },
+  ];
+  function timeRange() {
+    let acc = 0, bk = BUCKETS[BUCKETS.length - 1];
+    for (const b of BUCKETS) { acc += b.weight; if (seed.c < acc) { bk = b; break; } }
+    const w = (bk.to - bk.from) / bk.slices, i = Math.min(bk.slices - 1, Math.floor(seed.a * bk.slices));
+    return { from: bk.from + i * w, to: bk.from + (i + 1) * w, bucket: bk };
+  }
+
+  const QUERIES = {
+    week: { from: NOW - 7 * DAY, to: NOW, name: "last week" },
+    year: { from: Date.UTC(thisYear, 0, 1), to: NOW, name: "this year" },
+    y2021: { from: Date.UTC(2021, 0, 1), to: Date.UTC(2022, 0, 1) - 1, name: "2021" },
+  };
+
+  let mode = "size", q = null;
+  const $ = id => document.getElementById(id);
+  const fmt = t => new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+  const pct = t => ((t - START) / (NOW - START)) * 100;
+
+  $("who").textContent = `You are segment #${seed.id}`;
+  let ticks = "";
+  for (let y = 2019; y <= thisYear; y++) {
+    const p = pct(Date.UTC(y, 0, 1));
+    if (p <= 96) ticks += `<span style="left:${p}%">${y === 2019 ? y : "’" + String(y).slice(2)}</span>`;
+  }
+  $("ticks").innerHTML = ticks;
+
+  function render() {
+    const seg = mode === "size" ? sizeRange() : timeRange();
+    $("range").innerHTML = `${fmt(seg.from)} <span>→</span> ${fmt(seg.to)}`;
+    const bar = $("bar");
+    bar.style.left = pct(seg.from) + "%";
+    bar.style.width = Math.max(1.5, pct(seg.to) - pct(seg.from)) + "%";
+    bar.style.background = mode === "size"
+      ? "linear-gradient(90deg, var(--b0), var(--b1), var(--b2), var(--b3))"
+      : seg.bucket.color;
+    $("note").textContent = mode === "size"
+      ? "Merged with whatever was a similar size, so you hold messages from all over."
+      : `Only merged with segments from the ${seg.bucket.name}. Same messages, regrouped by time.`;
+
+    document.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", b.dataset.mode === mode));
+    document.querySelectorAll("[data-q]").forEach(b => b.setAttribute("aria-pressed", b.dataset.q === q));
+
+    const band = $("qband"), res = $("result");
+    if (!q) { band.style.display = "none"; res.className = "result"; res.innerHTML = ""; return; }
+    const query = QUERIES[q];
+    band.style.display = "block";
+    band.style.left = pct(query.from) + "%";
+    band.style.width = Math.max(2, pct(query.to) - pct(query.from)) + "%";
+    const hit = seg.from <= query.to && seg.to >= query.from;
+    res.className = "result " + (hit ? "stand" : "sit");
+    res.innerHTML = hit
+      ? `<b>STAND UP</b><p>Your dates overlap ${query.name}, so Lucene has to read you.</p>`
+      : `<b>Stay seated</b><p>No overlap with ${query.name}. Lucene skips you without reading a byte.</p>`;
+  }
+
+  document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => {
+    if (mode !== b.dataset.mode) { mode = b.dataset.mode; q = null; render(); }
+  }));
+  document.querySelectorAll("[data-q]").forEach(b => b.addEventListener("click", () => { q = b.dataset.q; render(); }));
+  render();
+})();
+</script>
+</body>
+</html>
