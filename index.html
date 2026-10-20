@@ -50,7 +50,7 @@
   .result { margin-top: 18px; border-radius: 14px; padding: 22px 18px; text-align: center; display: none; }
   .result.stand { display: block; background: var(--b3); color: #fff; }
   .result.sit { display: block; background: var(--wash); color: var(--ink); }
-  .result b { display: block; font-size: 44px; letter-spacing: -0.01em; line-height: 1.05; }
+  .result b { display: block; font-size: 38px; letter-spacing: -0.01em; line-height: 1.05; }
   .result p { margin: 8px 0 0; font-size: 16px; line-height: 1.4; }
   .result.stand { animation: pop .35s ease; }
   @keyframes pop { from { transform: scale(.94); } to { transform: none; } }
@@ -168,8 +168,8 @@
     const hit = seg.from <= query.to && seg.to >= query.from;
     res.className = "result " + (hit ? "stand" : "sit");
     res.innerHTML = hit
-      ? `<b>STAND UP</b><p>Your dates overlap ${query.name}, so Lucene has to read you.</p>`
-      : `<b>Stay seated</b><p>No overlap with ${query.name}. Lucene skips you without reading a byte.</p>`;
+      ? `<b>RAISE YOUR HAND ✋</b><p>Your dates overlap ${query.name}, so Lucene has to read you. Raise your hand in Meet.</p>`
+      : `<b>Hand down</b><p>No overlap with ${query.name}. Lucene skips you without reading a byte.</p>`;
   }
 
   document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => {
